@@ -11,7 +11,7 @@ import (
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
-var builtinCommands = []string{"exit", "echo", "type"}
+var builtinCommands = []string{"exit", "echo", "type", "pwd"}
 
 func parseCommand(command string) (string, []string, error) {
 	if command[len(command)-1] == '\n' {
@@ -62,6 +62,16 @@ func execBuiltinCommand(majorCommand string, argvs []string) error {
 		}
 		fmt.Println(argvs[0] + ": not found")
 		return nil
+
+	// pwd command
+	case "pwd":
+		if len(argvs) != 0 {
+			return fmt.Errorf("pwd: too many arguments")
+		}
+		if dir, err := os.Getwd(); err == nil {
+			fmt.Println(dir)
+		}
+		return nil
 	}
 
 	return fmt.Errorf("execBuiltinCommand: unknown command")
@@ -69,6 +79,7 @@ func execBuiltinCommand(majorCommand string, argvs []string) error {
 
 func main() {
 	for {
+		// print prompt and get command
 		fmt.Fprint(os.Stdout, "$ ")
 		command, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
@@ -76,17 +87,18 @@ func main() {
 			os.Exit(1)
 		}
 
+		// handle command string
 		command = strings.Trim(command, " ")
 		if command == "\n" {
 			continue
 		}
-
 		majorCommand, argvs, err := parseCommand(command)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 
+		// builtin commands
 		if slices.Contains(builtinCommands, majorCommand) {
 			if err := execBuiltinCommand(majorCommand, argvs); err != nil {
 				fmt.Println(err)
