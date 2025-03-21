@@ -11,7 +11,7 @@ import (
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
-var builtinCommands = []string{"exit", "echo", "type", "pwd"}
+var builtinCommands = []string{"exit", "echo", "type", "pwd", "cd"}
 
 func parseCommand(command string) (string, []string, error) {
 	if command[len(command)-1] == '\n' {
@@ -27,20 +27,18 @@ func parseCommand(command string) (string, []string, error) {
 }
 
 func execBuiltinCommand(majorCommand string, argvs []string) error {
+	argc := len(argvs)
 	switch majorCommand {
 	// exit command
 	case "exit":
-		if len(argvs) == 0 {
-			os.Exit(0)
-		}
-		if argvs[0] == "0" {
+		if argc == 0 || argvs[0] == "0" {
 			os.Exit(0)
 		}
 		os.Exit(1)
 
 	// echo command
 	case "echo":
-		if len(argvs) == 0 {
+		if argc == 0 {
 			fmt.Println()
 			return nil
 		}
@@ -49,7 +47,7 @@ func execBuiltinCommand(majorCommand string, argvs []string) error {
 
 	// type command
 	case "type":
-		if len(argvs) == 0 {
+		if argc == 0 {
 			return nil
 		}
 		if slices.Contains(builtinCommands, argvs[0]) {
@@ -65,11 +63,24 @@ func execBuiltinCommand(majorCommand string, argvs []string) error {
 
 	// pwd command
 	case "pwd":
-		if len(argvs) != 0 {
+		if argc != 0 {
 			return fmt.Errorf("pwd: too many arguments")
 		}
 		if dir, err := os.Getwd(); err == nil {
 			fmt.Println(dir)
+		}
+		return nil
+
+	// cd command
+	case "cd":
+		if argc == 0 {
+			return nil
+		}
+		if argc > 1 {
+			return fmt.Errorf("cd: too many arguments")
+		}
+		if err := os.Chdir(argvs[0]); err != nil {
+			return fmt.Errorf("cd: %s: No such file or directory", argvs[0])
 		}
 		return nil
 	}
