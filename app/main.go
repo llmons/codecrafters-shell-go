@@ -9,9 +9,8 @@ import (
 	"strings"
 )
 
-// Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
-var _ = fmt.Fprint
 var builtinCommands = []string{"exit", "echo", "type", "pwd", "cd"}
+var HOME = os.Getenv("HOME")
 
 func parseCommand(command string) (string, []string, error) {
 	if command[len(command)-1] == '\n' {
@@ -78,6 +77,12 @@ func execBuiltinCommand(majorCommand string, argvs []string) error {
 		}
 		if argc > 1 {
 			return fmt.Errorf("cd: too many arguments")
+		}
+		if argvs[0] == "~" {
+			if err := os.Chdir(HOME); err != nil {
+				return fmt.Errorf("cd: %s: No such file or directory", HOME)
+			}
+			return nil
 		}
 		if err := os.Chdir(argvs[0]); err != nil {
 			return fmt.Errorf("cd: %s: No such file or directory", argvs[0])
