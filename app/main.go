@@ -5,92 +5,110 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"slices"
+	"strconv"
 	"strings"
 )
 
-var builtinCommands = []string{"exit", "echo", "type", "pwd", "cd"}
-var HOME = os.Getenv("HOME")
+var builtinCommands map[string]func([]string) error
+var HOME string
 
-func parseCommand(command string) (string, []string, error) {
-	if command[len(command)-1] == '\n' {
-		command = command[:len(command)-1]
+func init() {
+	builtinCommands = map[string]func([]string) error{
+		"exit": handleExit,
+		"echo": handleEcho,
+		"type": handleType,
+		"pwd":  handlePwd,
+		"cd":   handleCd,
 	}
-	argvs := strings.Split(command, " ")
-	if len(argvs) == 0 {
-		return "", nil, fmt.Errorf("empty command")
-	}
-	majorCommand := argvs[0]
-	argvs = argvs[1:]
-	return majorCommand, argvs, nil
+	HOME = os.Getenv("HOME")
 }
 
-func execBuiltinCommand(majorCommand string, argvs []string) error {
-	argc := len(argvs)
-	switch majorCommand {
-	// exit command
-	case "exit":
-		if argc == 0 || argvs[0] == "0" {
-			os.Exit(0)
+func parseCommand(command string) (string, []string, error) {
+	// get tokens
+	tokens := []string{}
+	command = strings.TrimSpace(command)
+	for {
+		start := strings.Index(command, "'")
+		if start == -1 {
+			tokens = append(tokens, strings.Fields(command)...)
+			break
 		}
-		os.Exit(1)
-
-	// echo command
-	case "echo":
-		if argc == 0 {
-			fmt.Println()
-			return nil
-		}
-		fmt.Println(strings.Join(argvs, " "))
-		return nil
-
-	// type command
-	case "type":
-		if argc == 0 {
-			return nil
-		}
-		if slices.Contains(builtinCommands, argvs[0]) {
-			fmt.Println(argvs[0] + " is a shell builtin")
-			return nil
-		}
-		if path, err := exec.LookPath(argvs[0]); err == nil {
-			fmt.Println(argvs[0] + " is " + path)
-			return nil
-		}
-		fmt.Println(argvs[0] + ": not found")
-		return nil
-
-	// pwd command
-	case "pwd":
-		if argc != 0 {
-			return fmt.Errorf("pwd: too many arguments")
-		}
-		if dir, err := os.Getwd(); err == nil {
-			fmt.Println(dir)
-		}
-		return nil
-
-	// cd command
-	case "cd":
-		if argc == 0 {
-			return nil
-		}
-		if argc > 1 {
-			return fmt.Errorf("cd: too many arguments")
-		}
-		if argvs[0] == "~" {
-			if err := os.Chdir(HOME); err != nil {
-				return fmt.Errorf("cd: %s: No such file or directory", HOME)
-			}
-			return nil
-		}
-		if err := os.Chdir(argvs[0]); err != nil {
-			return fmt.Errorf("cd: %s: No such file or directory", argvs[0])
-		}
-		return nil
+		tokens = append(tokens, strings.Fields(command[:start])...)
+		command = command[start+1:]
+		end := strings.Index(command, "'")
+		tokens = append(tokens, command[:end])
+		command = command[end+1:]
 	}
 
-	return fmt.Errorf("execBuiltinCommand: unknown command")
+	if len(tokens) == 0 {
+		return "", nil, fmt.Errorf("empty command")
+	}
+	majorCommand := strings.ToLower(tokens[0])
+	argv := tokens[1:]
+	return majorCommand, argv, nil
+}
+
+func handleExit(argv []string) error {
+	if len(argv) == 0 {
+		os.Exit(0)
+	}
+	if code, err := strconv.Atoi(argv[0]); err == nil {
+		os.Exit(code)
+		return nil
+	} else {
+		return err
+	}
+}
+
+func handleEcho(argv []string) error {
+	if len(argv) == 0 {
+		fmt.Println()
+		return nil
+	}
+	fmt.Println(strings.Join(argv, " "))
+	return nil
+}
+
+func handleType(argv []string) error {
+	if len(argv) == 0 {
+		return nil
+	}
+	if _, ok := builtinCommands[argv[0]]; ok {
+		fmt.Println(argv[0] + " is a shell builtin")
+		return nil
+	}
+	if path, err := exec.LookPath(argv[0]); err == nil {
+		fmt.Println(argv[0] + " is " + path)
+		return nil
+	} else {
+		fmt.Println(argv[0] + ": not found")
+		return nil
+	}
+}
+
+func handlePwd(argv []string) error {
+	if len(argv) != 0 {
+		return fmt.Errorf("pwd: too many arguments")
+	}
+	if dir, err := os.Getwd(); err == nil {
+		fmt.Println(dir)
+		return nil
+	}
+	return fmt.Errorf("pwd: error")
+}
+
+func handleCd(argv []string) error {
+	if len(argv) > 1 {
+		return fmt.Errorf("cd: too many arguments")
+	}
+	if len(argv) == 0 || argv[0] == "~" {
+		if err := os.Chdir(HOME); err != nil {
+			fmt.Println("cd: " + HOME + ": No such file or directory")
+		}
+	} else if err := os.Chdir(argv[0]); err != nil {
+		fmt.Println("cd: " + argv[0] + ": No such file or directory")
+	}
+	return nil
 }
 
 func main() {
@@ -104,30 +122,29 @@ func main() {
 		}
 
 		// handle command string
-		command = strings.Trim(command, " ")
 		if command == "\n" {
 			continue
 		}
-		majorCommand, argvs, err := parseCommand(command)
+		majorCommand, argv, err := parseCommand(command)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 
-		// builtin commands
-		if slices.Contains(builtinCommands, majorCommand) {
-			if err := execBuiltinCommand(majorCommand, argvs); err != nil {
-				fmt.Println(err)
-			}
+		// handle builtin commands
+		if handler, ok := builtinCommands[majorCommand]; ok {
+			handler(argv)
 			continue
 		}
 
+		// check if major command exists
 		if _, err := exec.LookPath(majorCommand); err != nil {
 			fmt.Println(majorCommand + ": command not found")
 			continue
 		}
 
-		cmd := exec.Command(majorCommand, argvs...)
+		// execute common command
+		cmd := exec.Command(majorCommand, argv...)
 		stdout, err := cmd.Output()
 		if err != nil {
 			fmt.Println(err)
