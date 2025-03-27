@@ -4,10 +4,12 @@ type tokenType int
 
 const (
 	WORD tokenType = iota
+	STRING
 )
 
 var tokenTypeNames = map[tokenType]string{
-	WORD: "WORD",
+	WORD:   "WORD",
+	STRING: "STRING",
 }
 
 func (t tokenType) String() string {

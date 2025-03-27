@@ -32,15 +32,48 @@ func (s *Scanner) scanToken() {
 	case ' ':
 	case '\t':
 	case '\r':
-	case '\'', '"':
-		s.string()
+	case '\n':
+	case '\'':
+		s.stringSingleQuote()
+	case '"':
+		s.stringDoubleQuote()
 	default:
 		s.word()
 	}
 }
 
-func (s *Scanner) string() {
-	for s.peek() != '\'' && s.peek() != '"' && !s.isAtEnd() {
+func (s *Scanner) stringSingleQuote() {
+	for s.peek() != '\'' && !s.isAtEnd() {
+		s.advance()
+	}
+
+	if s.isAtEnd() {
+		util.Error("Unterminated string.")
+		return
+	}
+	s.advance()
+
+	// handle link quotes
+	value := s.source[s.start+1 : s.current-1]
+	for s.peek() == '\'' && !s.isAtEnd() {
+		s.advance()
+
+		start := s.current
+		for s.peek() != '\'' && !s.isAtEnd() {
+			s.advance()
+		}
+		if s.isAtEnd() {
+			util.Error("Unterminated string.")
+			return
+		}
+		s.advance()
+		value += s.source[start : s.current-1]
+	}
+	s.addToken(STRING, value)
+}
+
+func (s *Scanner) stringDoubleQuote() {
+	for s.peek() != '"' && !s.isAtEnd() {
 		s.advance()
 	}
 	if s.isAtEnd() {
@@ -48,19 +81,37 @@ func (s *Scanner) string() {
 		return
 	}
 	s.advance()
+
+	// handle link quotes
+	value := s.source[s.start+1 : s.current-1]
+	for s.peek() == '"' && !s.isAtEnd() {
+		s.advance()
+
+		start := s.current
+		for s.peek() != '"' && !s.isAtEnd() {
+			s.advance()
+		}
+		if s.isAtEnd() {
+			util.Error("Unterminated string.")
+			return
+		}
+		s.advance()
+		value += s.source[start : s.current-1]
+	}
+	s.addToken(STRING, value)
 }
 
 func (s *Scanner) word() {
-	for s.peek() != ' ' && s.peek() != '\t' && s.peek() != '\r' && !s.isAtEnd() {
+	for s.peek() != ' ' && s.peek() != '\t' && s.peek() != '\r' && s.peek() != '\n' && !s.isAtEnd() {
 		s.advance()
 	}
-	s.addToken(WORD)
+	s.addToken(WORD, s.source[s.start:s.current])
 }
 
-func (s *Scanner) addToken(tokenType tokenType) {
+func (s *Scanner) addToken(tokenType tokenType, lexeme string) {
 	s.tokens = append(s.tokens, Token{
 		tokenType: tokenType,
-		Lexeme:    s.source[s.start:s.current],
+		Lexeme:    lexeme,
 	})
 }
 

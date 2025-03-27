@@ -3,16 +3,17 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"os"
+
 	"github.com/codecrafters-io/shell-starter-go/app/excuter"
 	"github.com/codecrafters-io/shell-starter-go/app/scanner"
 	"github.com/codecrafters-io/shell-starter-go/app/util"
-	"os"
 )
 
 func main() {
 	for {
 		// print prompt and get command
-		fmt.Println("$ ")
+		fmt.Print("$ ")
 		command, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			fmt.Println(err)
@@ -22,9 +23,15 @@ func main() {
 		scanner := scanner.NewScanner(command)
 		tokens := scanner.ScanTokens()
 
+		if len(tokens) == 0 {
+			continue
+		}
+
 		if excuter, err := excuter.NewExecutor(tokens); err == nil {
 			result := excuter.Execute()
-			fmt.Println(result)
+			if result != "" {
+				fmt.Println(result)
+			}
 		} else {
 			util.Error(err.Error())
 		}

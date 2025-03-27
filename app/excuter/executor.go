@@ -2,19 +2,19 @@ package excuter
 
 import (
 	"errors"
-	"github.com/codecrafters-io/shell-starter-go/app/scanner"
 	"os"
 	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/codecrafters-io/shell-starter-go/app/scanner"
 )
 
 var builtinCommands = []string{
 	"cd", "echo", "exit", "pwd", "type",
 }
-
-const HOME = "HOME"
+var HOME = os.Getenv("HOME")
 
 type Executor struct {
 	command string
@@ -32,6 +32,7 @@ func NewExecutor(tokens []scanner.Token) (*Executor, error) {
 	for i, token := range tokens[1:] {
 		argv[i] = token.Lexeme
 	}
+
 	return &Executor{
 		command: tokens[0].Lexeme,
 		argv:    argv,
@@ -71,6 +72,7 @@ func (e *Executor) cd() {
 		if err := os.Chdir(HOME); err != nil {
 			e.result = "cd: " + HOME + ": No such file or directory"
 		}
+		return
 	}
 	if err := os.Chdir(e.argv[0]); err != nil {
 		e.result = "cd: " + e.argv[0] + ": No such file or directory"
